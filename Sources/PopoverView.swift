@@ -281,19 +281,11 @@ private struct SettingsRows: View {
     @AppStorage(Settings.Key.soundEnabled) private var soundEnabled = false
     var body: some View {
         Card {
-            HStack {
-                Image(systemName: "command")
-                    .frame(width: 18)
-                    .foregroundStyle(.secondary)
-                Text("Hotkey")
-                    .font(.system(size: 13))
-                    .foregroundStyle(.primary)
-                Spacer()
-                KeyboardShortcuts.Recorder(for: .toggleMute)
-                    .controlSize(.small)
-            }
-            .padding(.vertical, 4)
-            .padding(.horizontal, 12)
+            ShortcutRow(icon: "command", title: "Hotkey", name: .toggleMute)
+
+            Divider()
+
+            ShortcutRow(icon: "mic.badge.plus", title: "Push to talk", name: .pushToTalk)
 
             Divider()
 
@@ -347,6 +339,29 @@ private struct ToggleRow: View {
                 .controlSize(.small)
         }
         .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+    }
+}
+
+/// A row pairing a label with a global-shortcut recorder. An unassigned
+/// push-to-talk recorder simply leaves the mode disabled.
+private struct ShortcutRow: View {
+    let icon: String
+    let title: String
+    let name: KeyboardShortcuts.Name
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .frame(width: 22)
+                .foregroundStyle(.secondary)
+            Text(title)
+                .font(.system(size: 9))
+                .foregroundStyle(.primary)
+            Spacer()
+            KeyboardShortcuts.Recorder(for: name)
+                .controlSize(.small)
+        }
+        .padding(.vertical, 4)
         .padding(.horizontal, 12)
     }
 }

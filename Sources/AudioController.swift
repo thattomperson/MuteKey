@@ -29,19 +29,7 @@ final class AudioController {
     // MARK: Public
 
     func toggle() {
-        let devices = resolveTargetDevices()
-        guard !devices.isEmpty else {
-            NSLog("muteapp: no target device resolvable")
-            return
-        }
-        // Drive every target to the same new state. The aggregate `currentMuted`
-        // treats "all muted" as muted, so unmute-all wins whenever any mic is hot.
-        let newMuted = !currentMuted()
-        for device in devices {
-            NSLog("\(newMuted ? "Muting" : "Unmuting") \(device.name)")
-            setMuted(device.id, newMuted)
-        }
-        NotificationCenter.default.post(name: .muteStateChanged, object: nil)
+        setMutedState(!currentMuted())
     }
 
     func currentMuted() -> Bool {
@@ -50,6 +38,23 @@ final class AudioController {
         // Muted only when every target device is muted, so the UI reads "Live"
         // if any targeted mic is still open.
         return devices.allSatisfy { isMuted($0.id) ?? false }
+    }
+
+    /// Forces every target device to an absolute mute state and notifies
+    /// observers. Unlike `toggle()` this sets a fixed state, which is what the
+    /// push-to-talk handlers need (unmute on key down, mute on key up).
+    /// - Parameter muted: `true` to mute the targets, `false` to unmute.
+    func setMutedState(_ muted: Bool) {
+        let devices = resolveTargetDevices()
+        guard !devices.isEmpty else {
+            NSLog("muteapp: no target device resolvable")
+            return
+        }
+        for device in devices {
+            NSLog("\(muted ? "Muting" : "Unmuting") \(device.name)")
+            setMuted(device.id, muted)
+        }
+        NotificationCenter.default.post(name: .muteStateChanged, object: nil)
     }
 
     func listInputDevices() -> [InputDevice] {
