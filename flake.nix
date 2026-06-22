@@ -27,6 +27,8 @@
             swiftpmGenerated = swiftpm2nixHelpers ./nix;
             executableName = "MuteKey";
 
+            appleSdk = pkgs.apple-sdk_26;
+
             # KeyboardShortcuts' Recorder.swift ends with three `#Preview` blocks
             # for Xcode canvas previews. The `#Preview` macro is backed by the
             # closed-source `PreviewsMacros` plugin that ships only inside Xcode,
