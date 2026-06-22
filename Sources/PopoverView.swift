@@ -1,6 +1,6 @@
-import SwiftUI
-import ServiceManagement
 import KeyboardShortcuts
+import ServiceManagement
+import SwiftUI
 
 @MainActor
 final class PopoverModel: ObservableObject {
@@ -18,15 +18,18 @@ final class PopoverModel: ObservableObject {
         muted = AudioController.shared.currentMuted()
 
         let nc = NotificationCenter.default
-        observers.append(nc.addObserver(forName: .muteStateChanged, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in self?.muted = AudioController.shared.currentMuted() }
-        })
-        observers.append(nc.addObserver(forName: .inputDevicesChanged, object: nil, queue: .main) { [weak self] _ in
-            Task { @MainActor in
-                self?.refreshDevices()
-                self?.refreshFromSettings()
-            }
-        })
+        observers.append(
+            nc.addObserver(forName: .muteStateChanged, object: nil, queue: .main) { [weak self] _ in
+                Task { @MainActor in self?.muted = AudioController.shared.currentMuted() }
+            })
+        observers.append(
+            nc.addObserver(forName: .inputDevicesChanged, object: nil, queue: .main) {
+                [weak self] _ in
+                Task { @MainActor in
+                    self?.refreshDevices()
+                    self?.refreshFromSettings()
+                }
+            })
     }
 
     isolated deinit {
@@ -82,39 +85,51 @@ final class PopoverModel: ObservableObject {
     }
 }
 
+// MARK: - Shared constants
+
+/// The two semantic accent colors and the one external URL that used to live in
+/// Theme. Everything else is now system-driven (Liquid Glass + .primary/.secondary),
+/// so it adapts to light/dark and vibrancy automatically.
+enum Accent {
+    static func tint(muted: Bool) -> Color { muted ? .red : .green }
+    static let releasesURL = URL(string: "https://github.com/billimek/muteapp/releases")!
+}
+
+// MARK: - Root
+
 struct PopoverView: View {
     @StateObject var model = PopoverModel()
 
     var body: some View {
-        VStack(spacing: 14) {
-            MicGlyph(muted: model.muted)
-                .padding(.top, 16)
+        GlassEffectContainer(spacing: 12) {
+            VStack(spacing: 14) {
+                MicGlyph(muted: model.muted)
+                    .padding(.top, 8)
 
-            VStack(spacing: 2) {
-                Text(model.muted ? "Muted" : "Live")
-                    .font(.system(size: 20, weight: .bold))
-                    .foregroundStyle(model.muted ? Theme.muted : Theme.live)
-                Text(model.muted ? "Microphone is muted" : "Microphone is active")
-                    .font(.system(size: 11))
-                    .foregroundStyle(Theme.textSecondary)
+                VStack(spacing: 2) {
+                    Text(model.muted ? "Muted" : "Live")
+                        .font(.title3.bold())
+                        .foregroundStyle(Accent.tint(muted: model.muted))
+                    Text(model.muted ? "Microphone is muted" : "Microphone is active")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+
+                MuteButton(muted: model.muted) { model.toggleMute() }
+
+                SectionHeader("INPUT DEVICE")
+                DeviceList(model: model)
+
+                SectionHeader("SETTINGS")
+                SettingsRows(model: model)
+
+                Footer()
+                    .padding(.top, 4)
             }
-
-            MuteButton(muted: model.muted) { model.toggleMute() }
-
-            SectionHeader("INPUT DEVICE")
-            DeviceList(model: model)
-
-            SectionHeader("SETTINGS")
-            SettingsRows(model: model)
-
-            Footer()
-                .padding(.top, 4)
+            .padding(16)
         }
-        .padding(.horizontal, 18)
-        .padding(.bottom, 14)
         .frame(width: 300)
         .fixedSize(horizontal: false, vertical: true)
-        .background(Theme.gradient)
     }
 }
 
@@ -123,20 +138,13 @@ struct PopoverView: View {
 private struct MicGlyph: View {
     let muted: Bool
     var body: some View {
-        let tint = muted ? Theme.muted : Theme.live
-        ZStack {
-            Circle()
-                .fill(tint.opacity(0.18))
-                .frame(width: 96, height: 96)
-                .blur(radius: 12)
-            Circle()
-                .stroke(tint.opacity(0.85), lineWidth: 3)
-                .frame(width: 76, height: 76)
-            Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
-                .font(.system(size: 32, weight: .semibold))
-                .foregroundStyle(tint)
-        }
-        .animation(.easeInOut(duration: 0.18), value: muted)
+        let tint = Accent.tint(muted: muted)
+        Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
+            .font(.system(size: 30, weight: .semibold))
+            .foregroundStyle(tint)
+            .frame(width: 76, height: 76)
+            .glassEffect(.regular.tint(tint.opacity(0.25)), in: .circle)
+            .animation(.easeInOut(duration: 0.18), value: muted)
     }
 }
 
@@ -144,6 +152,7 @@ private struct MuteButton: View {
     let muted: Bool
     let action: () -> Void
     var body: some View {
+        let tint = Accent.tint(muted: muted)
         Button(action: action) {
             HStack {
                 Image(systemName: muted ? "mic.fill" : "mic.slash.fill")
@@ -153,22 +162,19 @@ private struct MuteButton: View {
                 if let s = KeyboardShortcuts.getShortcut(for: .toggleMute) {
                     Text(s.description)
                         .font(.system(size: 11, weight: .medium))
-                        .foregroundStyle(Theme.textSecondary)
+                        .foregroundStyle(.secondary)
                 }
             }
-            .foregroundStyle(.white)
-            .padding(.vertical, 10)
-            .padding(.horizontal, 14)
-            .background(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .fill(Theme.surface)
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .stroke(Theme.stroke, lineWidth: 1)
-            )
+            // Vivid colored text/icon over a subtle glass tint, matching the
+            // MicGlyph treatment instead of a solid saturated fill.
+            .foregroundStyle(tint)
+            .padding(.vertical, 12)
+            .padding(.horizontal, 16)
+            .frame(maxWidth: .infinity)
+            .contentShape(Capsule())
         }
         .buttonStyle(.plain)
+        .glassEffect(.regular.tint(tint.opacity(0.25)), in: .capsule)
     }
 }
 
@@ -180,23 +186,34 @@ private struct SectionHeader: View {
             Text(title)
                 .font(.system(size: 10, weight: .semibold))
                 .tracking(1.2)
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(.secondary)
             Spacer()
         }
+    }
+}
+
+/// A glass-backed card that groups rows, with dividers between them.
+private struct Card<Content: View>: View {
+    @ViewBuilder var content: Content
+    var body: some View {
+        VStack(spacing: 0) {
+            content
+        }
+        .glassEffect(in: .rect(cornerRadius: 12))
     }
 }
 
 private struct DeviceList: View {
     @ObservedObject var model: PopoverModel
     var body: some View {
-        VStack(spacing: 0) {
+        Card {
             DeviceRow(
                 icon: "dot.radiowaves.left.and.right",
                 name: "Follow current default",
                 selected: model.targetMode == .followDefault
             ) { model.selectFollowDefault() }
 
-            Divider().background(Theme.stroke)
+            Divider()
             DeviceRow(
                 icon: "mic.and.signal.meter",
                 name: "All devices",
@@ -204,7 +221,7 @@ private struct DeviceList: View {
             ) { model.selectAllDevices() }
 
             ForEach(model.devices, id: \.uid) { dev in
-                Divider().background(Theme.stroke)
+                Divider()
                 DeviceRow(
                     icon: deviceIcon(name: dev.name),
                     name: dev.name,
@@ -212,19 +229,13 @@ private struct DeviceList: View {
                 ) { model.selectDevice(dev.uid) }
             }
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Theme.stroke, lineWidth: 1)
-        )
     }
 
     private func deviceIcon(name: String) -> String {
         let lc = name.lowercased()
-        if lc.contains("airpod") || lc.contains("headphone") || lc.contains("headset") || lc.contains("beats") {
+        if lc.contains("airpod") || lc.contains("headphone") || lc.contains("headset")
+            || lc.contains("beats")
+        {
             return "headphones"
         }
         if lc.contains("macbook") || lc.contains("imac") || lc.contains("built") {
@@ -244,16 +255,16 @@ private struct DeviceRow: View {
             HStack(spacing: 10) {
                 Image(systemName: icon)
                     .frame(width: 18)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(.secondary)
                 Text(name)
                     .font(.system(size: 13))
-                    .foregroundStyle(Theme.textPrimary)
+                    .foregroundStyle(.primary)
                     .lineLimit(1)
                 Spacer()
                 if selected {
                     Image(systemName: "checkmark")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Theme.live)
+                        .foregroundStyle(.green)
                 }
             }
             .padding(.vertical, 8)
@@ -268,14 +279,14 @@ private struct SettingsRows: View {
     @ObservedObject var model: PopoverModel
     @AppStorage(Settings.Key.hudEnabled) private var hudEnabled = true
     var body: some View {
-        VStack(spacing: 0) {
+        Card {
             HStack {
                 Image(systemName: "command")
                     .frame(width: 18)
-                    .foregroundStyle(Theme.textSecondary)
+                    .foregroundStyle(.secondary)
                 Text("Hotkey")
                     .font(.system(size: 13))
-                    .foregroundStyle(Theme.textPrimary)
+                    .foregroundStyle(.primary)
                 Spacer()
                 KeyboardShortcuts.Recorder(for: .toggleMute)
                     .controlSize(.small)
@@ -283,7 +294,7 @@ private struct SettingsRows: View {
             .padding(.vertical, 4)
             .padding(.horizontal, 12)
 
-            Divider().background(Theme.stroke)
+            Divider()
 
             // Bound straight to UserDefaults via @AppStorage; HUDController reads
             // the same `hudEnabled` key, so no model plumbing is needed.
@@ -293,7 +304,7 @@ private struct SettingsRows: View {
                 isOn: $hudEnabled
             )
 
-            Divider().background(Theme.stroke)
+            Divider()
 
             ToggleRow(
                 icon: "power",
@@ -304,14 +315,6 @@ private struct SettingsRows: View {
                 )
             )
         }
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Theme.surface)
-        )
-        .overlay(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .stroke(Theme.stroke, lineWidth: 1)
-        )
     }
 }
 
@@ -323,16 +326,15 @@ private struct ToggleRow: View {
         HStack(spacing: 10) {
             Image(systemName: icon)
                 .frame(width: 18)
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(.secondary)
             Text(title)
                 .font(.system(size: 13))
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(.primary)
             Spacer()
             Toggle("", isOn: $isOn)
                 .labelsHidden()
                 .toggleStyle(.switch)
                 .controlSize(.small)
-                .tint(Theme.live)
         }
         .padding(.vertical, 6)
         .padding(.horizontal, 12)
@@ -343,14 +345,14 @@ private struct Footer: View {
     var body: some View {
         HStack {
             Button {
-                NSWorkspace.shared.open(Theme.releasesURL)
+                NSWorkspace.shared.open(Accent.releasesURL)
             } label: {
                 HStack(spacing: 5) {
                     Image(systemName: "arrow.down.circle")
                     Text("Check for Updates")
                 }
                 .font(.system(size: 11))
-                .foregroundStyle(Theme.textSecondary)
+                .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
 
@@ -358,7 +360,7 @@ private struct Footer: View {
 
             Text(versionLabel)
                 .font(.system(size: 11))
-                .foregroundStyle(Theme.textSecondary.opacity(0.7))
+                .foregroundStyle(.tertiary)
 
             Spacer()
 
@@ -367,10 +369,10 @@ private struct Footer: View {
             } label: {
                 HStack(spacing: 4) {
                     Text("Quit")
-                    Text("⌘Q").foregroundStyle(Theme.textSecondary.opacity(0.7))
+                    Text("⌘Q").foregroundStyle(.tertiary)
                 }
                 .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(Theme.textPrimary)
+                .foregroundStyle(.primary)
             }
             .buttonStyle(.plain)
             .keyboardShortcut("q", modifiers: .command)

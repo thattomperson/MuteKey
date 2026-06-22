@@ -29,27 +29,27 @@ final class AudioController {
     // MARK: Public
 
     func toggle() {
-        let ids = resolveTargetDeviceIDs()
-        guard !ids.isEmpty else {
+        let devices = resolveTargetDevices()
+        guard !devices.isEmpty else {
             NSLog("muteapp: no target device resolvable")
             return
         }
         // Drive every target to the same new state. The aggregate `currentMuted`
         // treats "all muted" as muted, so unmute-all wins whenever any mic is hot.
         let newMuted = !currentMuted()
-        for id in ids {
-            NSLog("Muting device \(id)")
-            setMuted(id, newMuted)
+        for device in devices {
+            NSLog("\(newMuted ? "Muting" : "Unmuting") \(device.name)")
+            setMuted(device.id, newMuted)
         }
         NotificationCenter.default.post(name: .muteStateChanged, object: nil)
     }
 
     func currentMuted() -> Bool {
-        let ids = resolveTargetDeviceIDs()
-        guard !ids.isEmpty else { return false }
+        let devices = resolveTargetDevices()
+        guard !devices.isEmpty else { return false }
         // Muted only when every target device is muted, so the UI reads "Live"
         // if any targeted mic is still open.
-        return ids.allSatisfy { isMuted($0) ?? false }
+        return devices.allSatisfy { isMuted($0.id) ?? false }
     }
 
     func listInputDevices() -> [InputDevice] {
@@ -82,31 +82,34 @@ final class AudioController {
         }
     }
 
-    func resolveTargetDeviceID() -> AudioDeviceID? {
+    /// The single device the current mode targets, or nil for `.allDevices`
+    /// (which has no single target). Used by the listener-install path.
+    func resolveTargetDevice() -> InputDevice? {
+        let devices = listInputDevices()
         switch Settings.targetMode {
         case .followDefault:
-            return defaultInputDeviceID()
+            guard let defaultID = defaultInputDeviceID() else { return nil }
+            return devices.first(where: { $0.id == defaultID })
         case .specificDevice:
             guard let wantedUID = Settings.targetDeviceUID else {
-                return defaultInputDeviceID()
+                return defaultInputDeviceID().flatMap { id in
+                    devices.first(where: { $0.id == id })
+                }
             }
-            return listInputDevices().first(where: { $0.uid == wantedUID })?.id
+            return devices.first(where: { $0.uid == wantedUID })
         case .allDevices:
-            // No single target; callers wanting the full set use
-            // `resolveTargetDeviceIDs()`. Fall back to the default for the
-            // single-device listener path.
-            return defaultInputDeviceID()
+            return nil
         }
     }
 
     /// The full set of devices the current mode targets. `.allDevices` returns
     /// every input device; the single-device modes return their one device.
-    func resolveTargetDeviceIDs() -> [AudioDeviceID] {
+    func resolveTargetDevices() -> [InputDevice] {
         switch Settings.targetMode {
         case .followDefault, .specificDevice:
-            return resolveTargetDeviceID().map { [$0] } ?? []
+            return resolveTargetDevice().map { [$0] } ?? []
         case .allDevices:
-            return listInputDevices().map(\.id)
+            return listInputDevices()
         }
     }
 
@@ -191,9 +194,9 @@ final class AudioController {
         guard let transport = transportType(id) else { return false }
         switch transport {
         case kAudioDeviceTransportTypeVirtual,
-             kAudioDeviceTransportTypeAggregate,
-             kAudioDeviceTransportTypeAutoAggregate,
-             kAudioDeviceTransportTypeUnknown:
+            kAudioDeviceTransportTypeAggregate,
+            kAudioDeviceTransportTypeAutoAggregate,
+            kAudioDeviceTransportTypeUnknown:
             return false
         default:
             return true
@@ -328,9 +331,10 @@ final class AudioController {
 
         // Attach to every device the current mode targets (one for the
         // single-device modes, all of them for `.allDevices`).
-        for id in resolveTargetDeviceIDs() where AudioObjectHasProperty(id, &addr) {
-            let status = AudioObjectAddPropertyListenerBlock(id, &addr, .main, propertyListener)
-            if status == noErr { muteListenerDeviceIDs.insert(id) }
+        for device in resolveTargetDevices() where AudioObjectHasProperty(device.id, &addr) {
+            let status = AudioObjectAddPropertyListenerBlock(
+                device.id, &addr, .main, propertyListener)
+            if status == noErr { muteListenerDeviceIDs.insert(device.id) }
         }
     }
 }

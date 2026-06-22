@@ -80,28 +80,16 @@ private struct HUDView: View {
     let muted: Bool
 
     var body: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 28, style: .continuous)
-                .fill(Color.black.opacity(0.55))
-                .background(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .fill(.ultraThinMaterial)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 28, style: .continuous)
-                        .stroke(Color.white.opacity(0.08), lineWidth: 1)
-                )
-
-            VStack(spacing: 12) {
-                Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
-                    .font(.system(size: 110, weight: .semibold))
-                    .foregroundStyle(muted ? Theme.muted : Theme.live)
-                    .shadow(color: (muted ? Theme.muted : Theme.live).opacity(0.5), radius: 18)
-                Text(muted ? "Muted" : "Live")
-                    .font(.system(size: 18, weight: .semibold))
-                    .foregroundStyle(.white)
-            }
+        let tint = muted ? Color.red : Color.green
+        VStack(spacing: 12) {
+            Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
+                .font(.system(size: 110, weight: .semibold))
+                .foregroundStyle(tint)
+            Text(muted ? "Muted" : "Live")
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundStyle(tint)
         }
         .frame(width: 220, height: 220)
+        .glassEffect(.regular.tint(tint.opacity(0.2)), in: .rect(cornerRadius: 28))
     }
 }
