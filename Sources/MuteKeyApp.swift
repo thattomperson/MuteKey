@@ -2,7 +2,7 @@ import SwiftUI
 
 @main
 @MainActor
-struct VMKitApp {
+struct MuteKeyApp {
     private static let delegate = AppDelegate()
 
     static func main() {

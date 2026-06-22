@@ -4,11 +4,17 @@
 import PackageDescription
 
 let package = Package(
-    name: "VMKit",
+    name: "MuteKey",
     platforms: [.macOS(.v15)],
+    dependencies: [
+        .package(url: "https://github.com/sindresorhus/KeyboardShortcuts", from: "2.0.0"),
+    ],
     targets: [
         .executableTarget(
-            name: "VMKit",
+            name: "MuteKey",
+            dependencies: [
+                .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts"),
+            ]
         )
     ],
     swiftLanguageModes: [.v6],

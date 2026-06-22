@@ -20,12 +20,25 @@
         in {
           swiftpm2nix = swiftixPkgs.swiftpm2nix;
           default = mkSwiftPackage {
-            pname = "vmkit";
+            pname = "mutekey";
             version = "0.1.0";
             src = ./.;
             swift = swiftix.packages.${system}.swift-6_3;
             swiftpmGenerated = swiftpm2nixHelpers ./nix;
-            executableName = "VMKit";
+            executableName = "MuteKey";
+
+            # KeyboardShortcuts' Recorder.swift ends with three `#Preview` blocks
+            # for Xcode canvas previews. The `#Preview` macro is backed by the
+            # closed-source `PreviewsMacros` plugin that ships only inside Xcode,
+            # so the swiftix (open-source swift.org) toolchain can't expand it and
+            # the build fails. These previews are dev-only and have no runtime
+            # effect, so strip them from the (made-mutable) checkout before build.
+            postConfigure = ''
+              swiftpmMakeMutable KeyboardShortcuts
+              f=.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift
+              awk '/^#Preview \{/{skip=1; next} skip && /^\}/{skip=0; next} !skip{print}' "$f" > "$f.tmp"
+              mv "$f.tmp" "$f"
+            '';
           };
         }
       );
