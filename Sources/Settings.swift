@@ -26,13 +26,19 @@ enum Settings {
         static let restoreLevels = "restoreLevelsByUID"
         static let hudEnabled = "hudEnabled"
         static let soundEnabled = "soundEnabled"
+        static let soundVolume = "soundVolume"
     }
 
     /// Register non-false defaults. `@AppStorage("hudEnabled")` initializers
     /// supply their own default, but registering here keeps the synchronous
     /// `Settings.hudEnabled` accessor consistent with the views.
     static func registerDefaults() {
-        UserDefaults.standard.register(defaults: [Key.hudEnabled: true])
+        UserDefaults.standard.register(defaults: [
+            Key.hudEnabled: true,
+            // Full volume by default; without this the synchronous accessor
+            // would read 0.0 (silent) for users who never moved the slider.
+            Key.soundVolume: 1.0,
+        ])
     }
 
     static var hudEnabled: Bool {
@@ -45,6 +51,13 @@ enum Settings {
     static var soundEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.soundEnabled) }
         set { UserDefaults.standard.set(newValue, forKey: Key.soundEnabled) }
+    }
+
+    /// Playback volume for the mute/unmute sounds, 0...1. Defaults to 1.0
+    /// (registered in `registerDefaults()`).
+    static var soundVolume: Double {
+        get { UserDefaults.standard.double(forKey: Key.soundVolume) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.soundVolume) }
     }
 
     static var targetMode: TargetMode {

@@ -92,7 +92,7 @@ final class PopoverModel: ObservableObject {
 /// so it adapts to light/dark and vibrancy automatically.
 enum Accent {
     static func tint(muted: Bool) -> Color { muted ? .red : .green }
-    static let releasesURL = URL(string: "https://github.com/billimek/muteapp/releases")!
+    static let releasesURL = URL(string: "https://github.com/thattomperson/MuteKey/releases")!
 }
 
 // MARK: - Root
@@ -128,7 +128,7 @@ struct PopoverView: View {
             }
             .padding(16)
         }
-        .frame(width: 300)
+        .frame(width: 320)
         .fixedSize(horizontal: false, vertical: true)
     }
 }
@@ -279,6 +279,7 @@ private struct SettingsRows: View {
     @ObservedObject var model: PopoverModel
     @AppStorage(Settings.Key.hudEnabled) private var hudEnabled = true
     @AppStorage(Settings.Key.soundEnabled) private var soundEnabled = false
+    @AppStorage(Settings.Key.soundVolume) private var soundVolume = 1.0
     var body: some View {
         Card {
             ShortcutRow(icon: "command", title: "Hotkey", name: .toggleMute)
@@ -306,6 +307,19 @@ private struct SettingsRows: View {
                 isOn: $soundEnabled
             )
 
+            // Volume only applies when sounds are on, so only show it then.
+            if soundEnabled {
+                VStack(spacing: 0) {
+                    Divider()
+                    SliderRow(
+                        icon: "speaker.wave.3.fill",
+                        value: $soundVolume,
+                        range: 0...1
+                    )
+                }
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
+
             Divider()
 
             ToggleRow(
@@ -317,6 +331,10 @@ private struct SettingsRows: View {
                 )
             )
         }
+        // Clip so the volume row slides out from under its divider rather than
+        // overlapping neighboring rows during the transition.
+        .clipShape(.rect(cornerRadius: 12))
+        .animation(.easeInOut(duration: 0.22), value: soundEnabled)
     }
 }
 
@@ -343,6 +361,24 @@ private struct ToggleRow: View {
     }
 }
 
+/// A row with a leading icon and a slider, for continuous settings like volume.
+private struct SliderRow: View {
+    let icon: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var body: some View {
+        HStack(spacing: 10) {
+            Image(systemName: icon)
+                .frame(width: 18)
+                .foregroundStyle(.secondary)
+            Slider(value: $value, in: range)
+                .controlSize(.small)
+        }
+        .padding(.vertical, 6)
+        .padding(.horizontal, 12)
+    }
+}
+
 /// A row pairing a label with a global-shortcut recorder. An unassigned
 /// push-to-talk recorder simply leaves the mode disabled.
 private struct ShortcutRow: View {
@@ -352,10 +388,10 @@ private struct ShortcutRow: View {
     var body: some View {
         HStack(spacing: 10) {
             Image(systemName: icon)
-                .frame(width: 22)
+                .frame(width: 18)
                 .foregroundStyle(.secondary)
             Text(title)
-                .font(.system(size: 9))
+                .font(.system(size: 13))
                 .foregroundStyle(.primary)
             Spacer()
             KeyboardShortcuts.Recorder(for: name)

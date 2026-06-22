@@ -22,6 +22,7 @@ final class SoundController {
     func play(muted: Bool) {
         guard Settings.soundEnabled else { return }
         guard let sound = muted ? muteSound : unmuteSound else { return }
+        sound.volume = Float(Settings.soundVolume)
         // Restart from the beginning if it's still playing from a rapid toggle.
         if sound.isPlaying { sound.stop() }
         sound.play()
