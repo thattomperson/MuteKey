@@ -1,46 +1,66 @@
 import Foundation
+import SwiftUI
 
 enum TargetMode: String {
     case followDefault
     case specificDevice
+    /// Mute/unmute every input device at once.
+    case allDevices
 }
 
-struct Settings {
-    private static let modeKey = "targetMode"
-    private static let uidKey = "targetDeviceUID"
-    private static let restoreLevelsKey = "restoreLevelsByUID"
-    private static let hudKey = "hudEnabled"
+/// `@AppStorage` requires its stored type to be `RawRepresentable` with a
+/// `String`/`Int` raw value, so this conformance lets views bind a `TargetMode`
+/// directly: `@AppStorage(Settings.Key.targetMode) var mode = TargetMode...`.
+extension TargetMode: RawRepresentable {}
+
+/// Backing store for app preferences.
+///
+/// `@AppStorage` and these accessors both read/write `UserDefaults.standard`
+/// under the same keys, so SwiftUI views can use `@AppStorage` for live,
+/// auto-persisting bindings while non-View code (e.g. `AudioController`, called
+/// from CoreAudio listener contexts) reads the same values synchronously here.
+enum Settings {
+    enum Key {
+        static let targetMode = "targetMode"
+        static let targetDeviceUID = "targetDeviceUID"
+        static let restoreLevels = "restoreLevelsByUID"
+        static let hudEnabled = "hudEnabled"
+    }
+
+    /// Register non-false defaults. `@AppStorage("hudEnabled")` initializers
+    /// supply their own default, but registering here keeps the synchronous
+    /// `Settings.hudEnabled` accessor consistent with the views.
+    static func registerDefaults() {
+        UserDefaults.standard.register(defaults: [Key.hudEnabled: true])
+    }
 
     static var hudEnabled: Bool {
-        get {
-            if UserDefaults.standard.object(forKey: hudKey) == nil { return true }
-            return UserDefaults.standard.bool(forKey: hudKey)
-        }
-        set { UserDefaults.standard.set(newValue, forKey: hudKey) }
+        get { UserDefaults.standard.bool(forKey: Key.hudEnabled) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.hudEnabled) }
     }
 
     static var targetMode: TargetMode {
         get {
-            UserDefaults.standard.string(forKey: modeKey)
+            UserDefaults.standard.string(forKey: Key.targetMode)
                 .flatMap(TargetMode.init(rawValue:)) ?? .followDefault
         }
-        set { UserDefaults.standard.set(newValue.rawValue, forKey: modeKey) }
+        set { UserDefaults.standard.set(newValue.rawValue, forKey: Key.targetMode) }
     }
 
     static var targetDeviceUID: String? {
-        get { UserDefaults.standard.string(forKey: uidKey) }
-        set { UserDefaults.standard.set(newValue, forKey: uidKey) }
+        get { UserDefaults.standard.string(forKey: Key.targetDeviceUID) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.targetDeviceUID) }
     }
 
     // Cache prior input volume per-device-UID for the volume-fallback path.
     static func restoreLevel(for uid: String) -> Float? {
-        let dict = UserDefaults.standard.dictionary(forKey: restoreLevelsKey) ?? [:]
+        let dict = UserDefaults.standard.dictionary(forKey: Key.restoreLevels) ?? [:]
         return dict[uid] as? Float
     }
 
     static func setRestoreLevel(_ level: Float?, for uid: String) {
-        var dict = UserDefaults.standard.dictionary(forKey: restoreLevelsKey) ?? [:]
+        var dict = UserDefaults.standard.dictionary(forKey: Key.restoreLevels) ?? [:]
         if let level { dict[uid] = level } else { dict.removeValue(forKey: uid) }
-        UserDefaults.standard.set(dict, forKey: restoreLevelsKey)
+        UserDefaults.standard.set(dict, forKey: Key.restoreLevels)
     }
 }

@@ -24,6 +24,8 @@ final class MenuBarState: ObservableObject {
     private var observer: NSObjectProtocol?
 
     init() {
+        Settings.registerDefaults()
+
         // MenuBarExtra apps are accessory by default, but set it explicitly so
         // there's no Dock icon regardless of how the bundle is launched.
         NSApp.setActivationPolicy(.accessory)

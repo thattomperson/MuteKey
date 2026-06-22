@@ -8,7 +8,6 @@ final class PopoverModel: ObservableObject {
     @Published var devices: [InputDevice] = []
     @Published var targetMode: TargetMode = .followDefault
     @Published var targetUID: String? = nil
-    @Published var hudEnabled: Bool = Settings.hudEnabled
     @Published var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
 
     private var observers: [NSObjectProtocol] = []
@@ -41,7 +40,6 @@ final class PopoverModel: ObservableObject {
     func refreshFromSettings() {
         targetMode = Settings.targetMode
         targetUID = Settings.targetDeviceUID
-        hudEnabled = Settings.hudEnabled
         launchAtLogin = (SMAppService.mainApp.status == .enabled)
     }
 
@@ -57,17 +55,20 @@ final class PopoverModel: ObservableObject {
         muted = AudioController.shared.currentMuted()
     }
 
+    func selectAllDevices() {
+        Settings.targetMode = .allDevices
+        Settings.targetDeviceUID = nil
+        AudioController.shared.installMuteListenerForCurrentTarget()
+        refreshFromSettings()
+        muted = AudioController.shared.currentMuted()
+    }
+
     func selectDevice(_ uid: String) {
         Settings.targetMode = .specificDevice
         Settings.targetDeviceUID = uid
         AudioController.shared.installMuteListenerForCurrentTarget()
         refreshFromSettings()
         muted = AudioController.shared.currentMuted()
-    }
-
-    func setHUDEnabled(_ value: Bool) {
-        Settings.hudEnabled = value
-        hudEnabled = value
     }
 
     func setLaunchAtLogin(_ value: Bool) {
@@ -195,6 +196,13 @@ private struct DeviceList: View {
                 selected: model.targetMode == .followDefault
             ) { model.selectFollowDefault() }
 
+            Divider().background(Theme.stroke)
+            DeviceRow(
+                icon: "mic.and.signal.meter",
+                name: "All devices",
+                selected: model.targetMode == .allDevices
+            ) { model.selectAllDevices() }
+
             ForEach(model.devices, id: \.uid) { dev in
                 Divider().background(Theme.stroke)
                 DeviceRow(
@@ -258,6 +266,7 @@ private struct DeviceRow: View {
 
 private struct SettingsRows: View {
     @ObservedObject var model: PopoverModel
+    @AppStorage(Settings.Key.hudEnabled) private var hudEnabled = true
     var body: some View {
         VStack(spacing: 0) {
             HStack {
@@ -276,13 +285,12 @@ private struct SettingsRows: View {
 
             Divider().background(Theme.stroke)
 
+            // Bound straight to UserDefaults via @AppStorage; HUDController reads
+            // the same `hudEnabled` key, so no model plumbing is needed.
             ToggleRow(
                 icon: "rectangle.center.inset.filled",
                 title: "Show on-screen HUD",
-                isOn: Binding(
-                    get: { model.hudEnabled },
-                    set: { model.setHUDEnabled($0) }
-                )
+                isOn: $hudEnabled
             )
 
             Divider().background(Theme.stroke)
