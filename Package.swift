@@ -14,6 +14,10 @@ let package = Package(
             name: "MuteKey",
             dependencies: [
                 .product(name: "KeyboardShortcuts", package: "KeyboardShortcuts")
+            ],
+            resources: [
+                // Bundled mute/unmute sound effects, accessed via Bundle.module.
+                .process("Resources/Sounds")
             ]
         )
     ],

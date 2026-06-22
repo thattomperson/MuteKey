@@ -25,6 +25,7 @@ enum Settings {
         static let targetDeviceUID = "targetDeviceUID"
         static let restoreLevels = "restoreLevelsByUID"
         static let hudEnabled = "hudEnabled"
+        static let soundEnabled = "soundEnabled"
     }
 
     /// Register non-false defaults. `@AppStorage("hudEnabled")` initializers
@@ -37,6 +38,13 @@ enum Settings {
     static var hudEnabled: Bool {
         get { UserDefaults.standard.bool(forKey: Key.hudEnabled) }
         set { UserDefaults.standard.set(newValue, forKey: Key.hudEnabled) }
+    }
+
+    /// Whether a sound effect plays on mute/unmute. No registered default, so it
+    /// defaults to `false` — sound effects are opt-in.
+    static var soundEnabled: Bool {
+        get { UserDefaults.standard.bool(forKey: Key.soundEnabled) }
+        set { UserDefaults.standard.set(newValue, forKey: Key.soundEnabled) }
     }
 
     static var targetMode: TargetMode {

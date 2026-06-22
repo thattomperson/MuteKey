@@ -39,6 +39,7 @@ final class MenuBarState: ObservableObject {
                 let muted = AudioController.shared.currentMuted()
                 self?.muted = muted
                 HUDController.shared.flash(muted: muted)
+                SoundController.shared.play(muted: muted)
             }
         }
     }

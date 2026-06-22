@@ -278,6 +278,7 @@ private struct DeviceRow: View {
 private struct SettingsRows: View {
     @ObservedObject var model: PopoverModel
     @AppStorage(Settings.Key.hudEnabled) private var hudEnabled = true
+    @AppStorage(Settings.Key.soundEnabled) private var soundEnabled = false
     var body: some View {
         Card {
             HStack {
@@ -302,6 +303,15 @@ private struct SettingsRows: View {
                 icon: "rectangle.center.inset.filled",
                 title: "Show on-screen HUD",
                 isOn: $hudEnabled
+            )
+
+            Divider()
+
+            // SoundController reads the same `soundEnabled` key when it plays.
+            ToggleRow(
+                icon: "speaker.wave.2.fill",
+                title: "Play sound effects",
+                isOn: $soundEnabled
             )
 
             Divider()
