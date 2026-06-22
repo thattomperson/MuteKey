@@ -2,33 +2,46 @@ import SwiftUI
 
 @main
 struct MuteKeyApp: App {
-    @State private var muted = true
+    @StateObject private var menuState = MenuBarState()
 
     var body: some Scene {
         MenuBarExtra {
             PopoverView()
         } label: {
-            Image(systemName: muted ? "mic.slash.fill" : "mic.fill")
-                // A template image so the menu bar tints it; SwiftUI handles
-                // the rendering, including the red tint when muted.
-                .foregroundStyle(muted ? Color.red : Color.primary)
+            Image(systemName: menuState.muted ? "mic.slash.fill" : "mic.fill")
+                .foregroundStyle(menuState.muted ? Color.red : Color.primary)
         }
         .menuBarExtraStyle(.window)
     }
 }
 
-private struct PopoverView: View {
-    var body: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("MuteKey")
-                .font(.headline)
-            Divider()
-            Text("Microphone controls go here.")
-                .foregroundStyle(.secondary)
-            Spacer()
+/// Drives the menu bar icon from the live mute state and installs the global
+/// hotkey. Replaces the old AppDelegate's launch wiring.
+@MainActor
+final class MenuBarState: ObservableObject {
+    @Published var muted: Bool = AudioController.shared.currentMuted()
+
+    private var observer: NSObjectProtocol?
+
+    init() {
+        // MenuBarExtra apps are accessory by default, but set it explicitly so
+        // there's no Dock icon regardless of how the bundle is launched.
+        NSApp.setActivationPolicy(.accessory)
+
+        HotkeyController.install()
+
+        observer = NotificationCenter.default.addObserver(
+            forName: .muteStateChanged, object: nil, queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                let muted = AudioController.shared.currentMuted()
+                self?.muted = muted
+                HUDController.shared.flash(muted: muted)
+            }
         }
-        .padding()
-        .frame(width: 280, height: 200, alignment: .topLeading)
-        .glassEffect(in: .rect(cornerRadius: 16.0))
+    }
+
+    isolated deinit {
+        if let observer { NotificationCenter.default.removeObserver(observer) }
     }
 }
