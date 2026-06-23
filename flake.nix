@@ -17,11 +17,14 @@
           swiftixPkgs = swiftix.packages.${system};
           mkSwiftPackage = swiftix.lib.mkSwiftPackage { inherit pkgs; };
           swiftpm2nixHelpers = swiftix.lib.swiftpm2nixHelpers { inherit pkgs; };
-        in {
+
+          version = "0.1.0";
+          bundleId = "com.thattomperson.MuteKey";
+        in rec {
           swiftpm2nix = swiftixPkgs.swiftpm2nix;
           default = mkSwiftPackage {
             pname = "mutekey";
-            version = "0.1.0";
+            inherit version;
             src = ./.;
             swift = swiftix.packages.${system}.swift-6_3;
             swiftpmGenerated = swiftpm2nixHelpers ./nix;
@@ -57,6 +60,49 @@
               done
             '';
           };
+
+          # Assemble a macOS .app bundle from the plain executable + resources.
+          #
+          # Note on layout: SwiftPM's generated `Bundle.module` accessor looks
+          # for `MuteKey_MuteKey.bundle` at `Bundle.main.bundleURL`, which for an
+          # .app is the bundle ROOT (not Contents/Resources). So the resource
+          # bundles are copied to the .app root to satisfy that hardcoded path.
+          # LSUIElement=true keeps it a menu-bar-only (accessory) app.
+          app = pkgs.runCommand "MuteKey.app" { } ''
+            app=$out/Applications/MuteKey.app
+            mkdir -p "$app/Contents/MacOS" "$app/Contents/Resources"
+
+            cp ${default}/bin/MuteKey "$app/Contents/MacOS/MuteKey"
+            chmod +w "$app/Contents/MacOS/MuteKey"
+
+            # Resource bundles at the .app root (see note above).
+            for b in ${default}/bin/*.bundle; do
+              cp -R "$b" "$app/$(basename "$b")"
+            done
+
+            cat > "$app/Contents/Info.plist" <<PLIST
+            <?xml version="1.0" encoding="UTF-8"?>
+            <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+            <plist version="1.0"><dict>
+              <key>CFBundleExecutable</key><string>MuteKey</string>
+              <key>CFBundleIdentifier</key><string>${bundleId}</string>
+              <key>CFBundleName</key><string>MuteKey</string>
+              <key>CFBundleDisplayName</key><string>MuteKey</string>
+              <key>CFBundleShortVersionString</key><string>${version}</string>
+              <key>CFBundleVersion</key><string>${version}</string>
+              <key>CFBundlePackageType</key><string>APPL</string>
+              <key>LSMinimumSystemVersion</key><string>26.0</string>
+              <key>LSUIElement</key><true/>
+            </dict></plist>
+            PLIST
+
+            # Note: the .app is left UNSIGNED. Codesigning needs Apple's
+            # codesign_allocate, which isn't available in the nix sandbox, so sign
+            # outside the build after copying it out of the store, e.g.:
+            #   cp -R result/Applications/MuteKey.app /Applications/
+            #   codesign --force --deep --sign - /Applications/MuteKey.app
+            # For distribution: Developer ID signature + notarization.
+          '';
         }
       );
 
