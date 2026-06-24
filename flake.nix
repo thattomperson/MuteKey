@@ -44,10 +44,45 @@
             # effect, so strip them from the (made-mutable) checkout before build.
             postConfigure = ''
               swiftpmMakeMutable KeyboardShortcuts
-              f=.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts/Recorder.swift
+              ks=.build/checkouts/KeyboardShortcuts/Sources/KeyboardShortcuts
+
+              # Strip three `#Preview` blocks from Recorder.swift — the #Preview
+              # macro needs Xcode's closed-source PreviewsMacros plugin, which the
+              # swiftix (swift.org) toolchain can't expand, so the build fails.
+              f="$ks/Recorder.swift"
               awk '/^#Preview \{/{skip=1; next} skip && /^\}/{skip=0; next} !skip{print}' "$f" > "$f.tmp"
               mv "$f.tmp" "$f"
+
+              # Redirect KeyboardShortcuts' only Bundle.module use (a localized
+              # string lookup in Utilities.swift) to a resilient bundle that
+              # checks Contents/Resources first. SwiftPM's generated Bundle.module
+              # accessor hardcodes the .app ROOT and fatalErrors if absent — which
+              # forces a root-level resource bundle that breaks codesign. Patching
+              # the generated accessor doesn't stick (SwiftPM regenerates it each
+              # build), so patch this real source file instead. The custom lookup
+              # never fatalErrors: worst case it falls back to .main and
+              # NSLocalizedString returns the key (English).
+              u="$ks/Utilities.swift"
+              sed -i.bak 's|bundle: \.module|bundle: keyboardShortcutsBundle|' "$u"
+              rm -f "$u.bak"
+              cat >> "$u" <<'SWIFT'
+
+              // Injected by MuteKey's flake: locate the resource bundle without
+              // the fatalError-on-miss behavior of the generated Bundle.module.
+              let keyboardShortcutsBundle: Bundle = {
+                  let name = "KeyboardShortcuts_KeyboardShortcuts.bundle"
+                  let candidates = [
+                      Bundle.main.resourceURL,           // .app Contents/Resources
+                      Bundle.main.bundleURL,             // next to a plain binary
+                  ].compactMap { $0?.appendingPathComponent(name) }
+                  for url in candidates {
+                      if let bundle = Bundle(path: url.path) { return bundle }
+                  }
+                  return .main
+              }()
+              SWIFT
             '';
+
 
             # mkSwiftPackage's installPhase copies only the executable. SwiftPM
             # builds dependency resources (e.g. KeyboardShortcuts' localization
@@ -63,16 +98,12 @@
 
           # Assemble a macOS .app bundle from the plain executable + resources.
           #
-          # Layout:
-          #  - Our own sounds go in the standard Contents/Resources, loaded via
-          #    Bundle.main (resourceURL → Contents/Resources).
-          #  - KeyboardShortcuts' resource bundle MUST sit at the .app root: its
-          #    generated Bundle.module accessor resolves against
-          #    Bundle.main.bundleURL (the .app root) and `fatalError`s if absent,
-          #    so the app crashes without it. A root-level flat bundle means
-          #    `codesign --verify` reports "unsealed contents"; the app still runs
-          #    ad-hoc-signed for local use, but full Developer ID notarization
-          #    would need the dependency's accessor changed (out of our control).
+          # Everything lives under the standard Contents/Resources so the bundle
+          # root stays clean and `codesign` is happy:
+          #  - Our sounds → Contents/Resources, loaded via Bundle.main.
+          #  - KeyboardShortcuts' resource bundle → Contents/Resources too; its
+          #    accessor was patched in preBuild to look in Bundle.main.resourceURL
+          #    rather than the .app root.
           # LSUIElement=true keeps it a menu-bar-only (accessory) app.
           app = pkgs.runCommand "MuteKey.app" { } ''
             app=$out/Applications/MuteKey.app
@@ -86,9 +117,9 @@
               cp ${default}/bin/MuteKey_MuteKey.bundle/*.wav "$app/Contents/Resources/"
             fi
 
-            # Dependency resource bundles → .app root (their Bundle.module path).
+            # Dependency resource bundles → Contents/Resources (patched path).
             for b in ${default}/bin/KeyboardShortcuts_*.bundle; do
-              [ -e "$b" ] && cp -R "$b" "$app/$(basename "$b")"
+              [ -e "$b" ] && cp -R "$b" "$app/Contents/Resources/$(basename "$b")"
             done
 
             cat > "$app/Contents/Info.plist" <<PLIST
