@@ -20,8 +20,28 @@
 
           version = "0.1.0";
           bundleId = "com.thattomperson.MuteKey";
+
+          swift = swiftix.packages.${system}.swift-6_3;
+          sdkRoot = "${pkgs.apple-sdk_26}/Platforms/MacOSX.platform/Developer/SDKs/MacOSX.sdk";
         in rec {
           swiftpm2nix = swiftixPkgs.swiftpm2nix;
+
+          # Render AppIcon.icns reproducibly: ImageRenderer draws each size from
+          # Tools/GenerateIcon.swift, then png2icns packs them (no Apple iconutil,
+          # which isn't in nixpkgs). Wired into `app` below.
+          icon = pkgs.runCommand "AppIcon.icns" {
+            nativeBuildInputs = [ swift pkgs.apple-sdk_26 pkgs.libicns ];
+          } ''
+            export SDKROOT="${sdkRoot}"
+            export HOME="$(mktemp -d)"
+            mkdir -p pngs
+            for s in 16 32 128 256 512 1024; do
+              swift ${./Tools/GenerateIcon.swift} "$s" "pngs/icon-$s.png"
+            done
+            mkdir -p $out
+            png2icns $out/AppIcon.icns pngs/*.png
+          '';
+
           default = mkSwiftPackage {
             pname = "mutekey";
             inherit version;
@@ -122,8 +142,8 @@
               [ -e "$b" ] && cp -R "$b" "$app/Contents/Resources/$(basename "$b")"
             done
 
-            # App icon (committed; regenerate with Tools/generate-icon.sh).
-            cp ${./Sources/Resources/AppIcon.icns} "$app/Contents/Resources/AppIcon.icns"
+            # App icon — built reproducibly by the `icon` derivation.
+            cp ${icon}/AppIcon.icns "$app/Contents/Resources/AppIcon.icns"
 
             cat > "$app/Contents/Info.plist" <<PLIST
             <?xml version="1.0" encoding="UTF-8"?>
