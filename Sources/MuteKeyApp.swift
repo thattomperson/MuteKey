@@ -23,7 +23,8 @@ struct MuteKeyApp: App {
     /// image so it adapts to the menu bar's appearance like a normal status icon.
     private func menuBarIcon(muted: Bool) -> NSImage {
         let symbol = muted ? "mic.slash.fill" : "mic.fill"
-        let base = NSImage(systemSymbolName: symbol, accessibilityDescription: muted ? "Muted" : "Live")
+        let base =
+            NSImage(systemSymbolName: symbol, accessibilityDescription: muted ? "Muted" : "Live")
             ?? NSImage()
 
         guard muted else {

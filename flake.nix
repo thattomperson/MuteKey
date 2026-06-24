@@ -63,10 +63,16 @@
 
           # Assemble a macOS .app bundle from the plain executable + resources.
           #
-          # Note on layout: SwiftPM's generated `Bundle.module` accessor looks
-          # for `MuteKey_MuteKey.bundle` at `Bundle.main.bundleURL`, which for an
-          # .app is the bundle ROOT (not Contents/Resources). So the resource
-          # bundles are copied to the .app root to satisfy that hardcoded path.
+          # Layout:
+          #  - Our own sounds go in the standard Contents/Resources, loaded via
+          #    Bundle.main (resourceURL → Contents/Resources).
+          #  - KeyboardShortcuts' resource bundle MUST sit at the .app root: its
+          #    generated Bundle.module accessor resolves against
+          #    Bundle.main.bundleURL (the .app root) and `fatalError`s if absent,
+          #    so the app crashes without it. A root-level flat bundle means
+          #    `codesign --verify` reports "unsealed contents"; the app still runs
+          #    ad-hoc-signed for local use, but full Developer ID notarization
+          #    would need the dependency's accessor changed (out of our control).
           # LSUIElement=true keeps it a menu-bar-only (accessory) app.
           app = pkgs.runCommand "MuteKey.app" { } ''
             app=$out/Applications/MuteKey.app
@@ -75,9 +81,14 @@
             cp ${default}/bin/MuteKey "$app/Contents/MacOS/MuteKey"
             chmod +w "$app/Contents/MacOS/MuteKey"
 
-            # Resource bundles at the .app root (see note above).
-            for b in ${default}/bin/*.bundle; do
-              cp -R "$b" "$app/$(basename "$b")"
+            # Our bundled sounds → Contents/Resources (Bundle.main location).
+            if [ -d "${default}/bin/MuteKey_MuteKey.bundle" ]; then
+              cp ${default}/bin/MuteKey_MuteKey.bundle/*.wav "$app/Contents/Resources/"
+            fi
+
+            # Dependency resource bundles → .app root (their Bundle.module path).
+            for b in ${default}/bin/KeyboardShortcuts_*.bundle; do
+              [ -e "$b" ] && cp -R "$b" "$app/$(basename "$b")"
             done
 
             cat > "$app/Contents/Info.plist" <<PLIST
@@ -100,8 +111,11 @@
             # codesign_allocate, which isn't available in the nix sandbox, so sign
             # outside the build after copying it out of the store, e.g.:
             #   cp -R result/Applications/MuteKey.app /Applications/
+            #   chmod -R u+w /Applications/MuteKey.app
             #   codesign --force --deep --sign - /Applications/MuteKey.app
-            # For distribution: Developer ID signature + notarization.
+            # Ad-hoc signing is enough to run locally. (codesign --verify will
+            # warn about the root-level KeyboardShortcuts bundle — see layout note
+            # above — which blocks notarization but not local launch.)
           '';
         }
       );

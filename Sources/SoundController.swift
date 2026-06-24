@@ -28,11 +28,17 @@ final class SoundController {
         sound.play()
     }
 
-    /// Loads a `.wav` resource from the SwiftPM module bundle by base name.
+    /// Loads a `.wav` resource by base name.
+    ///
+    /// Prefers `Bundle.main` (the app bundle's `Contents/Resources`, which is the
+    /// codesign-friendly location) and falls back to `Bundle.module` for
+    /// `swift run` / dev builds, where resources live in the SwiftPM bundle.
     /// - Parameter name: The file's base name, without the `.wav` extension.
     /// - Returns: An `NSSound`, or `nil` if the resource is missing.
     private static func loadSound(named name: String) -> NSSound? {
-        guard let url = Bundle.module.url(forResource: name, withExtension: "wav") else {
+        let url = Bundle.main.url(forResource: name, withExtension: "wav")
+            ?? Bundle.module.url(forResource: name, withExtension: "wav")
+        guard let url else {
             NSLog("muteapp: missing sound resource \(name).wav")
             return nil
         }
