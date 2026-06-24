@@ -1,0 +1,67 @@
+name: Nightly
+
+# Build, ad-hoc sign, and publish MuteKey.app on every push to main.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Allow the workflow to create/update the `nightly` release.
+permissions:
+  contents: write
+
+concurrency:
+  group: nightly
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Apple Silicon runner — the flake is aarch64-darwin only and needs the
+    # macOS 26 SDK from nixpkgs.
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Nix
+        uses: DeterminateSystems/nix-installer-action@main
+
+      - name: Enable FlakeHub cache
+        # Public read cache; the flake already pulls swiftix/SDK from
+        # cache.flakehub.com, so this avoids rebuilding Swift from source.
+        uses: DeterminateSystems/flakehub-cache-action@main
+
+      - name: Build .app
+        run: nix build .#app --print-build-logs
+
+      - name: Stage, ad-hoc sign, and verify
+        run: |
+          set -euo pipefail
+          rm -rf dist && mkdir dist
+          cp -R result/Applications/MuteKey.app dist/MuteKey.app
+          chmod -R u+w dist/MuteKey.app
+          # Ad-hoc signature (no secrets). Developer ID + notarization would go
+          # here later for distribution without Gatekeeper warnings.
+          codesign --force --deep --sign - dist/MuteKey.app
+          # Fail the build if the bundle isn't structurally valid — guards the
+          # Contents/Resources layout that keeps codesign happy.
+          codesign --verify --strict --verbose dist/MuteKey.app
+
+      - name: Zip
+        run: |
+          set -euo pipefail
+          cd dist
+          ditto -c -k --keepParent MuteKey.app MuteKey.app.zip
+
+      - name: Publish nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          # Roll the `nightly` prerelease: recreate the tag at this commit and
+          # replace its single asset.
+          gh release delete nightly --cleanup-tag --yes || true
+          gh release create nightly dist/MuteKey.app.zip \
+            --prerelease \
+            --title "Nightly" \
+            --target "$GITHUB_SHA" \
+            --notes "Automated ad-hoc-signed build of MuteKey.app from ${GITHUB_SHA:0:7}. Unsigned for distribution — Gatekeeper will warn; right-click → Open, or run: xattr -dr com.apple.quarantine MuteKey.app"
