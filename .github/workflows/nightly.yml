@@ -20,8 +20,8 @@ jobs:
     # macOS 26 SDK from nixpkgs.
     runs-on: macos-26
     permissions:
-      id-token: write
-      contents: read
+      id-token: write   # FlakeHub cache OIDC
+      contents: write   # create/update the nightly release
     steps:
       - uses: actions/checkout@v4
 
