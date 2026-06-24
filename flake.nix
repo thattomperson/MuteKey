@@ -122,6 +122,9 @@
               [ -e "$b" ] && cp -R "$b" "$app/Contents/Resources/$(basename "$b")"
             done
 
+            # App icon (committed; regenerate with Tools/generate-icon.sh).
+            cp ${./Sources/Resources/AppIcon.icns} "$app/Contents/Resources/AppIcon.icns"
+
             cat > "$app/Contents/Info.plist" <<PLIST
             <?xml version="1.0" encoding="UTF-8"?>
             <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -133,6 +136,7 @@
               <key>CFBundleShortVersionString</key><string>${version}</string>
               <key>CFBundleVersion</key><string>${version}</string>
               <key>CFBundlePackageType</key><string>APPL</string>
+              <key>CFBundleIconFile</key><string>AppIcon</string>
               <key>LSMinimumSystemVersion</key><string>26.0</string>
               <key>LSUIElement</key><true/>
             </dict></plist>
