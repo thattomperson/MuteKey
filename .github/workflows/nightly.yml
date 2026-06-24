@@ -19,6 +19,9 @@ jobs:
     # Apple Silicon runner — the flake is aarch64-darwin only and needs the
     # macOS 26 SDK from nixpkgs.
     runs-on: macos-15
+    permissions:
+      id-token: write
+      contents: read
     steps:
       - uses: actions/checkout@v4
 
