@@ -4,6 +4,10 @@ name: Nightly
 on:
   push:
     branches: [main]
+    # Docs-only changes don't affect the build, so skip them.
+    paths-ignore:
+      - '**.md'
+      - 'LICENSE'
   workflow_dispatch:
 
 # Allow the workflow to create/update the `nightly` release.
