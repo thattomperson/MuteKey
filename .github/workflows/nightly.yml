@@ -6,13 +6,9 @@ on:
     branches: [main]
     # Docs-only changes don't affect the build, so skip them.
     paths-ignore:
-      - '**.md'
-      - 'LICENSE'
+      - "**.md"
+      - "LICENSE"
   workflow_dispatch:
-
-# Allow the workflow to create/update the `nightly` release.
-permissions:
-  contents: write
 
 concurrency:
   group: nightly
@@ -24,8 +20,8 @@ jobs:
     # macOS 26 SDK from nixpkgs.
     runs-on: macos-26
     permissions:
-      id-token: write   # FlakeHub cache OIDC
-      contents: write   # create/update the nightly release
+      id-token: write # FlakeHub cache OIDC
+      contents: write # create/update the nightly release
     steps:
       - uses: actions/checkout@v4
 
