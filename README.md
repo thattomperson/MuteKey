@@ -21,7 +21,23 @@ state, and a Liquid Glass popover gives you a device picker and settings.
 ## Requirements
 
 - macOS 26 or later (the UI uses Liquid Glass / `glassEffect`)
-- [Nix](https://nixos.org) with flakes enabled (for the reproducible build)
+- [Nix](https://nixos.org) with flakes enabled — only to **build** from source
+
+## Installation
+
+Download `MuteKey.app.zip` from the
+[**nightly** release](https://github.com/thattomperson/MuteKey/releases/tag/nightly),
+unzip it, and move `MuteKey.app` to `/Applications`.
+
+The app is **ad-hoc signed but not notarized**, so Gatekeeper will refuse to
+open it until you remove the download quarantine flag:
+
+```sh
+xattr -dr com.apple.quarantine /Applications/MuteKey.app
+```
+
+Then launch it from `/Applications` (or `open /Applications/MuteKey.app`). The
+mic icon appears in the menu bar — there's no Dock icon or window.
 
 ## Build & run
 
