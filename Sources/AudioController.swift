@@ -54,7 +54,10 @@ final class AudioController {
             NSLog("\(muted ? "Muting" : "Unmuting") \(device.name)")
             setMuted(device.id, muted)
         }
-        NotificationCenter.default.post(name: .muteStateChanged, object: nil)
+        // Note: do NOT post muteStateChanged here. setMuted already causes it —
+        // either via the CoreAudio propertyListener (mute-property path) or by
+        // posting directly (volume-scalar fallback). A second post here would
+        // fire sound effects and UI updates twice.
     }
 
     func listInputDevices() -> [InputDevice] {
@@ -157,11 +160,15 @@ final class AudioController {
             let status = AudioObjectSetPropertyData(
                 id, &addr, 0, nil, UInt32(MemoryLayout<UInt32>.size), &value
             )
+            // The propertyListener fires when kAudioDevicePropertyMute changes,
+            // so callers must NOT post muteStateChanged themselves — that would
+            // cause a double notification (and double sound effect).
             if status == noErr { return }
             NSLog(
                 "muteapp: kAudioDevicePropertyMute set failed (\(status)); falling back to volume")
         }
-        // Volume-scalar fallback.
+        // Volume-scalar fallback: no CoreAudio property listener fires here, so
+        // post the notification ourselves so the UI and sound effect still update.
         guard let uid = stringProperty(id, kAudioDevicePropertyDeviceUID) else { return }
         if muted {
             if let cur = inputVolume(id), cur > 0 {
@@ -172,6 +179,7 @@ final class AudioController {
             let restore = Settings.restoreLevel(for: uid) ?? 1.0
             setInputVolume(id, restore)
         }
+        NotificationCenter.default.post(name: .muteStateChanged, object: nil)
     }
 
     // MARK: Helpers

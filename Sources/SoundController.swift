@@ -11,6 +11,7 @@ final class SoundController {
 
     private let muteSound: NSSound?
     private let unmuteSound: NSSound?
+    private var lastPlayedAt: Date = .distantPast
 
     private init() {
         muteSound = SoundController.loadSound(named: "mute")
@@ -18,9 +19,16 @@ final class SoundController {
     }
 
     /// Plays the sound matching the new mute state, if sound effects are enabled.
+    ///
+    /// Debounced to 100 ms so that `.allDevices` mode (which fires one
+    /// `muteStateChanged` per device from the CoreAudio listener) only plays
+    /// the sound once per user-initiated toggle action.
     /// - Parameter muted: `true` to play the mute sound, `false` for unmute.
     func play(muted: Bool) {
         guard Settings.soundEnabled else { return }
+        let now = Date()
+        guard now.timeIntervalSince(lastPlayedAt) > 0.1 else { return }
+        lastPlayedAt = now
         guard let sound = muted ? muteSound : unmuteSound else { return }
         sound.volume = Float(Settings.soundVolume)
         // Restart from the beginning if it's still playing from a rapid toggle.
