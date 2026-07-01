@@ -9,6 +9,7 @@ final class PopoverModel: ObservableObject {
     @Published var targetMode: TargetMode = .followDefault
     @Published var targetUID: String? = nil
     @Published var launchAtLogin: Bool = (SMAppService.mainApp.status == .enabled)
+    @Published var settingsExpanded: Bool = false
 
     private var observers: [NSObjectProtocol] = []
 
@@ -103,28 +104,31 @@ struct PopoverView: View {
     var body: some View {
         GlassEffectContainer(spacing: 12) {
             VStack(spacing: 14) {
-                MicGlyph(muted: model.muted)
-                    .padding(.top, 8)
+                ZStack(alignment: .bottomTrailing) {
+                    Card {
+                        VStack(spacing: 14) {
+                            MicGlyph(muted: model.muted)
+                                .padding(.top, 8)
 
-                VStack(spacing: 2) {
-                    Text(model.muted ? "Muted" : "Live")
-                        .font(.title3.bold())
-                        .foregroundStyle(Accent.tint(muted: model.muted))
-                    Text(model.muted ? "Microphone is muted" : "Microphone is active")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                            VStack(spacing: 2) {
+                                Text(model.muted ? "Muted" : "Live")
+                                    .font(.title3.bold())
+                                    .foregroundStyle(Accent.tint(muted: model.muted))
+                                Text(model.muted ? "Microphone is muted" : "Microphone is active")
+                                    .font(.caption)
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            MuteButton(muted: model.muted) { model.toggleMute() }
+                        }
+                        .padding(16)
+                    }
+
+                    SettingsCogButton(expanded: $model.settingsExpanded)
+                        .offset(x: 6, y: 6)
                 }
 
-                MuteButton(muted: model.muted) { model.toggleMute() }
-
-                SectionHeader("INPUT DEVICE")
-                DeviceList(model: model)
-
-                SectionHeader("SETTINGS")
-                SettingsRows(model: model)
-
-                Footer()
-                    .padding(.top, 4)
+                SettingsPanel(model: model)
             }
             .padding(16)
         }
@@ -175,6 +179,43 @@ private struct MuteButton: View {
         }
         .buttonStyle(.plain)
         .glassEffect(.regular.tint(tint.opacity(0.25)), in: .capsule)
+    }
+}
+
+private struct SettingsCogButton: View {
+    @Binding var expanded: Bool
+    var body: some View {
+        Button {
+            withAnimation(.easeInOut(duration: 0.22)) {
+                expanded.toggle()
+            }
+        } label: {
+            Image(systemName: "gearshape.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 28)
+                .glassEffect(in: .circle)
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+private struct SettingsPanel: View {
+    @ObservedObject var model: PopoverModel
+    var body: some View {
+        if model.settingsExpanded {
+            VStack(spacing: 14) {
+                SectionHeader("INPUT DEVICE")
+                DeviceList(model: model)
+
+                SectionHeader("SETTINGS")
+                SettingsRows(model: model)
+
+                Footer()
+                    .padding(.top, 4)
+            }
+            .transition(.move(edge: .top).combined(with: .opacity))
+        }
     }
 }
 
